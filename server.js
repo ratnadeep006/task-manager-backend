@@ -10,7 +10,11 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "*",  // ✅ FIX: Set your Vercel URL in env vars
+  origin: [
+    process.env.FRONTEND_URL,
+    'https://task-manager-frontend-3bm34kcrb-ratnadeep006s-projects.vercel.app',
+    'https://task-manager-frontend-one-green.vercel.app'
+  ],
   credentials: true
 }));
 
@@ -29,22 +33,19 @@ const pool = mysql.createPool({
 });
 
 // Non-blocking DB check (safe for Render)
-pool.getConnection()
-  .then(conn => {
+pool
+  .getConnection()
+  .then((conn) => {
     console.log("✅ MySQL connected");
     conn.release();
   })
-  .catch(err => {
+  .catch((err) => {
     console.error("❌ MySQL Error:", err.message);
   });
 
 // JWT Helper
 const generateToken = (userId) => {
-  return jwt.sign(
-    { userId },
-    process.env.JWT_SECRET,
-    { expiresIn: "7d" }
-  );
+  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: "7d" });
 };
 
 // Auth Middleware
@@ -83,14 +84,13 @@ app.post("/api/register", async (req, res) => {
 
     const [result] = await pool.query(
       "INSERT INTO users (email, password) VALUES (?, ?)",
-      [email, hashedPassword]
+      [email, hashedPassword],
     );
 
     res.status(201).json({
       message: "User created",
       userId: result.insertId,
     });
-
   } catch (err) {
     if (err.code === "ER_DUP_ENTRY") {
       return res.status(400).json({ error: "Email already exists" });
@@ -110,10 +110,9 @@ app.post("/api/login", async (req, res) => {
   }
 
   try {
-    const [rows] = await pool.query(
-      "SELECT * FROM users WHERE email = ?",
-      [email]
-    );
+    const [rows] = await pool.query("SELECT * FROM users WHERE email = ?", [
+      email,
+    ]);
 
     if (rows.length === 0) {
       return res.status(401).json({ error: "Invalid credentials" });
@@ -133,7 +132,6 @@ app.post("/api/login", async (req, res) => {
       token,
       userId: user.id,
     });
-
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -155,7 +153,7 @@ app.post("/api/tasks", auth, async (req, res) => {
   try {
     const [result] = await pool.query(
       "INSERT INTO tasks (user_id, title, description) VALUES (?, ?, ?)",
-      [req.userId, title, description || null]
+      [req.userId, title, description || null],
     );
 
     res.status(201).json({
@@ -164,7 +162,6 @@ app.post("/api/tasks", auth, async (req, res) => {
       description,
       is_complete: false,
     });
-
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to create task" });
@@ -176,11 +173,10 @@ app.get("/api/tasks", auth, async (req, res) => {
   try {
     const [rows] = await pool.query(
       "SELECT * FROM tasks WHERE user_id = ? ORDER BY created_at DESC",
-      [req.userId]
+      [req.userId],
     );
 
     res.json(rows);
-
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch tasks" });
@@ -218,7 +214,7 @@ app.put("/api/tasks/:id", auth, async (req, res) => {
   try {
     const [result] = await pool.query(
       `UPDATE tasks SET ${fields.join(", ")} WHERE id = ? AND user_id = ?`,
-      values
+      values,
     );
 
     if (result.affectedRows === 0) {
@@ -226,7 +222,6 @@ app.put("/api/tasks/:id", auth, async (req, res) => {
     }
 
     res.json({ message: "Task updated" });
-
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to update task" });
@@ -240,7 +235,7 @@ app.delete("/api/tasks/:id", auth, async (req, res) => {
   try {
     const [result] = await pool.query(
       "DELETE FROM tasks WHERE id = ? AND user_id = ?",
-      [taskId, req.userId]
+      [taskId, req.userId],
     );
 
     if (result.affectedRows === 0) {
@@ -248,7 +243,6 @@ app.delete("/api/tasks/:id", auth, async (req, res) => {
     }
 
     res.json({ message: "Task deleted" });
-
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to delete task" });
